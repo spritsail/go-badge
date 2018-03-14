@@ -1,59 +1,29 @@
 package badge
 
 import (
-	"bytes"
-	"html/template"
-	"io/ioutil"
-	"strings"
-	"sync"
 	"testing"
+
+	"github.com/valyala/fasttemplate"
 )
 
-func TestBadgeDrawerRender(t *testing.T) {
-	mockTemplate := strings.TrimSpace(`
-	{{.Subject}},{{.Status}},{{.Color}},{{with .Bounds}}{{.SubjectX}},{{.SubjectDx}},{{.StatusX}},{{.StatusDx}},{{.Dx}}{{end}}
-	`)
-	mockFontSize := 11.0
-	mockDPI := 72.0
-
-	d := &badgeDrawer{
-		fd:    mustNewFontDrawer(mockFontSize, mockDPI),
-		tmpl:  template.Must(template.New("mock-template").Parse(mockTemplate)),
-		mutex: &sync.Mutex{},
-	}
-
-	output := "XXX,YYY,#c0c0c0,18,34,50,34,68"
-
-	var buf bytes.Buffer
-	err := d.Render("XXX", "YYY", "#c0c0c0", &buf)
+func TestRender(t *testing.T) {
+	fd, err := NewFace(11, 72, "fonts/verdana.ttf")
 	if err != nil {
-		t.Errorf("unexpected error: %s", err)
+		t.Error(err)
 	}
-	result := buf.String()
-	if result != output {
-		t.Errorf("expect %q got %q", output, result)
-	}
+	tmpl := fasttemplate.New(FlatTemplate, "{{", "}}")
+	Render("test", "status", ColorGray, fd, tmpl)
 }
 
 func BenchmarkRender(b *testing.B) {
-	// warm up
-	Render("XXX", "YYY", ColorBlue, ioutil.Discard)
+	fd, err := NewFace(11, 72, "fonts/verdana.ttf")
+	if err != nil {
+		b.Error(err)
+	}
+	tmpl := fasttemplate.New(FlatTemplate, "{{", "}}")
+	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		err := Render("XXX", "YYY", ColorBlue, ioutil.Discard)
-		if err != nil {
-			b.Fatal(err)
-		}
+		Render("test", "status", ColorGray, fd, tmpl)
 	}
-}
-
-func BenchmarkRenderParallel(b *testing.B) {
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			err := Render("XXX", "YYY", ColorBlue, ioutil.Discard)
-			if err != nil {
-				b.Fatal(err)
-			}
-		}
-	})
 }

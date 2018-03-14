@@ -1,4 +1,4 @@
-# go-badge [![GoDoc](https://godoc.org/github.com/narqo/go-badge?status.svg)](https://godoc.org/github.com/narqo/go-badge)
+# go-badge [![GoDoc](https://godoc.org/github.com/glaslos/go-badge?status.svg)](https://godoc.org/github.com/glaslos/go-badge)
 
 go-badge is a library to render shield badges to SVG.
 
@@ -7,7 +7,7 @@ go-badge is a library to render shield badges to SVG.
 Using `go get`
 
 ```
-go get github.com/narqo/go-badge
+go get github.com/glaslos/go-badge
 ```
 
 ## Usage
@@ -16,26 +16,17 @@ go get github.com/narqo/go-badge
 import (
 	"os"
 
-	"github.com/narqo/go-badge"
+	"github.com/glaslos/go-badge"
+	"github.com/valyala/fasttemplate"
 )
 
 func main() {
-	if err := badge.Render("godoc", "reference", "#5272B4", os.Stdout); err != nil {
-		panic(err)
-	}
+	tmpl := fasttemplate.New(badge.FlatTemplate, "{{", "}}")
+	fd, _ := badge.NewFace(11, 72, "fonts/vera.ttf")
+	println(badge.Render("godoc", "reference", "#5272B4", fd, tmpl))
 }
 ```
-
-Hope `example/` directory will have more examples in future.
-
-## Contribution and Feedback
-
-Contributing is more than welcome. Create an issue if you ses any problem in the code or send a PR with fixes if you'd like.
 
 ## License
 
 MIT
-
----
-
-All the kudos should go to the great [Shields.io](https://github.com/badges/shields) specification project.

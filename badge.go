@@ -1,101 +1,67 @@
 package badge
 
 import (
-	"html/template"
-	"io"
-	"sync"
+	"io/ioutil"
+	"os"
+	"strconv"
 
 	"github.com/golang/freetype/truetype"
-	"github.com/narqo/go-badge/fonts"
+	"github.com/valyala/fasttemplate"
 	"golang.org/x/image/font"
 )
 
-type badge struct {
-	Subject string
-	Status  string
-	Color   Color
-	Bounds  bounds
-}
+const (
+	dpi      = 72
+	fontsize = 11
+	extraDx  = 13
+)
 
-type bounds struct {
-	// SubjectDx is the width of subject string of the badge.
-	SubjectDx float64
-	SubjectX  float64
-	// StatusDx is the width of status string of the badge.
-	StatusDx  float64
-	StatusX   float64
-}
-
-func (b bounds) Dx() float64 {
-	return b.SubjectDx + b.StatusDx
-}
-
-type badgeDrawer struct {
-	fd    *font.Drawer
-	tmpl  *template.Template
-	mutex *sync.Mutex
-}
-
-func (d *badgeDrawer) Render(subject, status string, color Color, w io.Writer) error {
-	d.mutex.Lock()
-	subjectDx := d.measureString(subject)
-	statusDx := d.measureString(status)
-	d.mutex.Unlock()
-
-	bdg := badge{
-		Subject: subject,
-		Status:  status,
-		Color:   color,
-		Bounds: bounds{
-			SubjectDx: subjectDx,
-			SubjectX:  subjectDx / 2.0 + 1,
-			StatusDx:  statusDx,
-			StatusX:   subjectDx + statusDx / 2.0 - 1,
-		},
-	}
-	return d.tmpl.Execute(w, bdg)
-}
-
-// shield.io uses Verdana.ttf to measure text width with an extra 10px.
-// As we use Vera.ttf, we have to tune this value a little.
-const extraDx = 13
-
-func (d *badgeDrawer) measureString(s string) float64 {
-	sm := d.fd.MeasureString(s)
+func measureString(s string, face font.Face) float64 {
+	sm := font.MeasureString(face, s)
 	// this 64 is weird but it's the way I've found how to convert fixed.Int26_6 to float64
-	return float64(sm) / 64 + extraDx
+	return float64(sm)/64 + extraDx
+}
+
+func floatStr(f float64) string {
+	return strconv.Itoa(int(f))
 }
 
 // Render renders a badge of the given color, with given subject and status to w.
-func Render(subject, status string, color Color, w io.Writer) error {
-	return drawer.Render(subject, status, color, w)
-}
+func Render(subject, status string, color Color, fd font.Face, tmpl *fasttemplate.Template) string {
+	subjectDx := measureString(subject, fd)
+	statusDx := measureString(status, fd)
 
-const (
-	dpi = 72
-	fontsize = 11
-)
-
-var drawer *badgeDrawer
-
-func init() {
-	drawer = &badgeDrawer{
-		fd:   mustNewFontDrawer(fontsize, dpi),
-		tmpl: template.Must(template.New("flat-template").Parse(flatTemplate)),
-		mutex: &sync.Mutex{},
+	data := map[string]interface{}{
+		"subject":   subject,
+		"status":    status,
+		"color":     color.String(),
+		"dx":        floatStr(subjectDx + statusDx),
+		"subjectDx": floatStr(subjectDx),
+		"subjectX":  floatStr(subjectDx/2.0 + 1),
+		"statusDx":  floatStr(statusDx),
+		"statusX":   floatStr(subjectDx + statusDx/2.0 - 1),
 	}
+	return tmpl.ExecuteString(data)
 }
 
-func mustNewFontDrawer(size, dpi float64) *font.Drawer {
-	ttf, err := truetype.Parse(fonts.VeraSans)
+// NewFace creates a new face based on font, size and dpi
+func NewFace(size, dpi float64, fontPath string) (face font.Face, err error) {
+	f, err := os.Open(fontPath)
 	if err != nil {
-		panic(err)
+		return
 	}
-	return &font.Drawer{
-		Face: truetype.NewFace(ttf, &truetype.Options{
-			Size:    size,
-			DPI:     dpi,
-			Hinting: font.HintingFull,
-		}),
+	defer f.Close()
+	raw, err := ioutil.ReadAll(f)
+	if err != nil {
+		return
 	}
+	ttf, err := truetype.Parse(raw)
+	if err != nil {
+		return
+	}
+	return truetype.NewFace(ttf, &truetype.Options{
+		Size:    size,
+		DPI:     dpi,
+		Hinting: font.HintingFull,
+	}), nil
 }
